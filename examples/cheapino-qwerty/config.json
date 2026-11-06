@@ -1,0 +1,6 @@
+{
+  "_comment": "Overlay settings for this layout: copy next to vial_overlay.pyw as config.json.",
+  "layer_names": ["BASE", "NAV", "MOUSE", "MEDIA", "NUM", "SYM", "FUN"],
+  "layer_colors": ["#4a5060", "#2f6fdf", "#2fa84f", "#9b3fd6", "#e07b1f", "#c9a400", "#d63a3a"],
+  "firmware_layer_report": true
+}

@@ -3,7 +3,7 @@
 
   python3 vil.py show  FILE.vil          # print every non-empty layer as a grid
   python3 vil.py build TEMPLATE.vil OUT  # write the QWERTY Miryoku-style layout below into OUT
-  python3 vil.py export FILE.vil OUT.json # numeric keymap for `cheapino_overlay.pyw --write OUT.json`
+  python3 vil.py export FILE.vil OUT.json # numeric keymap for `vial_overlay.pyw --write OUT.json`
 
 Physical -> matrix mapping comes from tompi/vial-qmk (cheapinov2) info.json.
 """

@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to config.json and edit. Every setting is optional. device = \"vid:pid\" in hex, to pick one keyboard when several are plugged in.",
+  "device": "",
+  "layer_names": ["Base", "Nav", "Symbols"],
+  "layer_colors": ["#4a5060", "#2f6fdf", "#c9a400"],
+  "firmware_layer_report": false,
+  "scale": 1.0,
+  "opacity": 0.92
+}

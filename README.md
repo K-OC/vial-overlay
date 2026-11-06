@@ -1,91 +1,100 @@
-# Cheapino v2 QWERTY layout + live overlay
+# Vial overlay
 
-A beginner-friendly QWERTY, Miryoku-style layout for the
-[Cheapino v2](https://github.com/tompi/cheapino) (36-key split, RP2040, one rotary encoder) running Vial,
-plus a small always-on-top window that shows the active layer and the keys you're holding.
+An always-on-top window that shows your keyboard's current layer and the keys you're holding. It works with
+any keyboard running [Vial](https://get.vial.today) firmware, on Windows, macOS and Linux.
 
-## Files
+Everything it draws comes from the keyboard itself: the physical layout (including rotated thumb clusters
+and encoders), the keymap on every layer, and the knob actions. Change something in Vial, then right-click >
+Reload keymap.
 
-| Path | What it is |
+- Transparent keys (▽) show what they fall through to, dimmed.
+- Hold-tap keys show their tap action, with "hold Shift" / "hold Layer 2" underneath.
+- The title bar names the layer and which thumb or key you're holding to get there.
+
+## Install and run
+
+Needs Python 3.8+ with Tkinter (included with the python.org installers).
+
+| OS | Setup | Run |
+|---|---|---|
+| Windows | nothing | `pythonw vial_overlay.pyw` |
+| macOS | `pip3 install hidapi` | `python3 vial_overlay.pyw &` (macOS may ask for Input Monitoring) |
+| Linux | `pip install hidapi`, then install `linux/50-vial.rules` (steps inside) and replug | `python3 vial_overlay.pyw &` |
+
+Drag the window to move it. Right-click (Ctrl-click on a Mac) for: Hide on base layer, Reload keymap, Bigger,
+Smaller, Quit. It pauses itself while Vial is open, because two programs talking to the keyboard at once
+confuse each other.
+
+`python vial_overlay.pyw --test` prints what it reads without opening a window. Use it to check setup.
+
+## Settings (optional)
+
+Copy `config.example.json` to `config.json` next to the script:
+
+| Key | Meaning |
 |---|---|
-| `vil.py` | Source of truth for the layout. `build` writes a Vial `.vil`, `show` prints it, `export` makes a numeric keymap for the overlay's `--write`. |
-| `cheapino-qwerty.vil` | Generated layout. Load it in Vial: File > Load saved layout. |
-| `template-tompi-miryoku.vil` | Official Cheapino Vial layout, used as the template (UID, tuned settings). |
-| `keycodes_v6.json` | Keycode name -> number table, derived from vial-gui's `keycodes_v6.py`. |
-| `overlay/cheapino_overlay.pyw` | Live layer overlay (Tk). Also `--test` and `--write keymap.json`. |
-| `overlay/labels.json` | Key labels for the overlay. |
-| `overlay/diag.py`, `brightness.py`, `qmksetting.py` | Small helpers: print board state, set LED brightness, get/set a QMK setting. |
-| `overlay/50-cheapino.rules` | Linux udev rule so the overlay and Vial can open the keyboard without sudo. |
-| `firmware/cheapino-layer-led.patch` | Optional firmware change: per-layer LED colour, LED keys that don't overwrite the base colour, and a raw-HID layer report the overlay uses. |
+| `layer_names` | Names for layers 0, 1, 2… (default "Layer N") |
+| `layer_colors` | Title-bar colour per layer |
+| `device` | `"vid:pid"` in hex, to choose a keyboard when several Vial boards are plugged in |
+| `firmware_layer_report` | `true` only if your firmware implements the layer report below |
+| `scale`, `opacity` | Window size and transparency |
 
-## Layout
+## How the layer is detected
 
-Home-row mods (Shift on the pinkies), six layer-tap thumbs:
+Stock Vial firmware doesn't report the active layer, so the overlay reads which keys are physically held
+and follows any layer keys (`LT`, `MO`, `TT`) among them. That covers hold-to-switch layers. Toggled or
+one-shot layers (`TG`, `TO`, `OSL`, `DF`) can't be seen this way.
 
-| Thumb (hold) | Layer |
-|---|---|
-| Esc | MEDIA (volume, track, screenshot, LED) |
-| Space | NAV (arrows, home/end, undo/copy/paste) |
-| Tab | MOUSE |
-| Enter | SYM (`! @ # $ % ^ & * ( )`, braces, etc.) |
-| Delete | FUN (F-keys) |
-| Backspace | NUM (numpad, `1 2 3` on top) |
+For exact detection, add this to your keymap or keyboard code and set `"firmware_layer_report": true`:
 
-Knob scrolls and clicks Tab; on MEDIA it's volume and play/pause.
-Run `python3 vil.py show cheapino-qwerty.vil` for the full grid.
-
-## Changing the layout
-
-```sh
-# edit LAYERS in vil.py, then
-python3 vil.py build template-tompi-miryoku.vil cheapino-qwerty.vil
-```
-Load the `.vil` in Vial, or push it without Vial (close Vial and the overlay first; two programs talking
-raw HID at once steal each other's replies):
-```sh
-python3 vil.py export cheapino-qwerty.vil keymap.json
-python3 overlay/cheapino_overlay.pyw --write keymap.json   # prints "verified: True"
+```c
+void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
+    if (data[0] == 0x40) {               // layer report for the overlay
+        layer_state_t st = layer_state | default_layer_state;
+        data[1] = get_highest_layer(st);
+        data[2] = st; data[3] = st >> 8; data[4] = st >> 16; data[5] = st >> 24;
+    } else {
+        data[0] = 0xFF;                  // id_unhandled
+    }
+}
 ```
 
-Suggested tap-hold settings (Vial > QMK Settings, or `overlay/qmksetting.py`): tapping term 330 ms (qsid 7),
-tap-hold flags 3 = permissive hold, no hold-on-other-key-press (qsid 8). This makes fast rolls type letters
-instead of firing modifiers.
+Held-key highlighting uses Vial's matrix tester, so on boards built without `VIAL_INSECURE` it only works
+after you unlock the keyboard in Vial.
 
-## Overlay
+## Pushing a keymap without Vial
 
-- **Windows:** no installs. `pythonw overlay/cheapino_overlay.pyw`
-- **macOS:** `pip3 install hidapi`, then `python3 overlay/cheapino_overlay.pyw`. macOS may ask for Input Monitoring.
-- **Linux:** `pip install hidapi`, install `overlay/50-cheapino.rules` (instructions inside), replug, run.
+`vial_overlay.pyw --write keymap.json` writes a numeric keymap
+(`{"keymap": [layer][row][col], "encoders": [layer][index][ccw, cw]}`, QMK v6 keycodes), sends only the
+changed parts, then reads it back and prints `verified: True`. Close Vial and the overlay first.
 
-Drag to move, right-click for options. It pauses while Vial is open. With the stock firmware the layer is
-guessed from held keys; with the patched firmware it's exact.
+## Tools
 
-## Firmware (optional)
+Small scripts in `tools/` that reuse the overlay's HID code:
 
-Applies to [tompi/vial-qmk](https://github.com/tompi/vial-qmk), branch `cheapinov2`, commit `9100f29`:
-```sh
-git clone -b cheapinov2 https://github.com/tompi/vial-qmk && cd vial-qmk
-git checkout 9100f29 && git submodule update --init --recursive
-git apply ../firmware/cheapino-layer-led.patch
-make cheapino:vial          # needs gcc-arm-none-eabi and the qmk python requirements
-```
-Flash: hold the top-right key (Y) while plugging in, copy `cheapino_vial.uf2` to the RPI-RP2 drive.
-The patched build enumerates as FEF3:AFB7. **Flashing resets the keymap and QMK settings**, so re-apply
-both afterwards.
+- `diag.py`: name, layers, layer report, RGB values, knob actions
+- `brightness.py VALUE`: set and save RGB Light brightness (0-255)
+- `qmksetting.py QSID [VALUE]`: read or change a Vial QMK setting (for example 7 = tapping term in ms)
 
-## Security notes
+## Example
 
-- The overlay only reads from the keyboard, except `--write`, which you run yourself. It uses fixed
-  subprocess arguments (no shell) and only parses JSON.
-- The upstream Cheapino firmware builds with `VIAL_INSECURE = yes`, so any program on your computer can
-  change the keymap (including macros) without the physical unlock combo. Set it to `no` in
-  `keyboards/cheapino/rules.mk` if that matters to you; Vial will then ask for the unlock combo, and
-  `--write` will need the board unlocked first.
+`examples/cheapino-qwerty/` is a complete setup for the Cheapino v2: a QWERTY Miryoku-style layout
+generated by a script, overlay settings, and a firmware patch with per-layer LED colours and the layer
+report.
 
-## Credits
+## Security
 
-Cheapino by tompi. Layer scheme after Miryoku by manna-harbour. Keycode table from vial-gui.
+- In normal use the overlay only reads from the keyboard. The one write path is `--write`, which you run
+  yourself.
+- It only talks to raw HID interfaces with the VIA/Vial usage page (0xFF60), and to boards that answer the
+  Vial ID request.
+- It runs no shell. Its one subprocess (checking whether Vial is open) uses fixed arguments, and it only
+  parses JSON (the definition the keyboard sends is LZMA-compressed JSON).
+- Firmware built with `VIAL_INSECURE = yes` lets any program on the computer rewrite the keymap and macros
+  without the physical unlock. That is a firmware choice, not something this tool needs, apart from held-key
+  highlighting.
 
 ## Licence
 
-GPL-2.0-or-later (see `LICENSE`), matching QMK and vial-gui, which parts of this are derived from.
+GPL-2.0-or-later (see `LICENSE`). The key label table and the Cheapino example's keycode table are derived
+from [vial-gui](https://github.com/vial-kb/vial-gui) (GPL-2.0).

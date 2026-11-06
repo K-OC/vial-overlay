@@ -1,0 +1,5 @@
+# Linux: lets your user open Vial keyboards (this overlay and Vial itself) without sudo.
+# This is the rule from the Vial docs: it matches the "vial:f64c2b3c" serial every Vial firmware uses.
+# Install:  sudo cp 50-vial.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+# then unplug and replug the keyboard.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{serial}=="*vial:f64c2b3c*", MODE="0660", GROUP="users", TAG+="uaccess", TAG+="udev-acl"
