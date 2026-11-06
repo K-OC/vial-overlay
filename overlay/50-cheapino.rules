@@ -1,0 +1,5 @@
+# Linux: lets your user talk to the Cheapino (overlay and Vial) without sudo.
+# Install:  sudo cp 50-cheapino.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+# then unplug and replug the keyboard.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="fef3", ATTRS{idProduct}=="afb7", MODE="0660", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="fee3", ATTRS{idProduct}=="0000", MODE="0660", TAG+="uaccess"

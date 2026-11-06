@@ -1,0 +1,95 @@
+diff --git a/keyboards/cheapino/cheapino.c b/keyboards/cheapino/cheapino.c
+index cfc4592b..e1838297 100644
+--- a/keyboards/cheapino/cheapino.c
++++ b/keyboards/cheapino/cheapino.c
+@@ -42,34 +42,63 @@ void keyboard_post_init_user(void) {
+     defer_exec(50, flash_led, NULL);
+ }
+ 
+-// Make the builtin RGB led show different colors per layer:
+-// This seemed like a good idea but turned out pretty annoying,
+-// to me at least... Uncomment the lines below to enable
+-/*
+-uint8_t get_hue(uint8_t layer) {
+-    switch (layer) {
+-        case 6:
+-            return 169;
+-        case 5:
+-            return 43;
+-        case 4:
+-            return 85;
+-        case 3:
+-            return 120;
+-        case 2:
+-            return 180;
+-        case 1:
+-            return 220;
+-        default:
+-            return 0;
++// ---- Per-layer LED colour (for the QWERTY Miryoku-style layout in vil.py) ----
++// Layers: 0 BASE, 1 NAV, 2 MOUSE, 3 MEDIA, 4 NUM, 5 SYM, 6 FUN.
++// BASE shows whatever colour is set in Vial's Lighting tab (read back from EEPROM).
++// Uses the _noeeprom setters so layer changes never wear out flash.
++#define LAYER_SAT 255
++static const int16_t layer_hue[] = {
++    -1,   // 0 BASE  - user colour from Vial
++    170,  // 1 NAV   - blue
++    85,   // 2 MOUSE - green
++    200,  // 3 MEDIA - purple
++    21,   // 4 NUM   - orange
++    43,   // 5 SYM   - yellow
++    0,    // 6 FUN   - red
++};
++
++layer_state_t layer_state_set_kb(layer_state_t state) {
++    state = layer_state_set_user(state);
++    uint8_t layer = get_highest_layer(state | default_layer_state);
++    if (_hue_countdown == 0) { // don't fight the startup colour flash
++        if (layer < sizeof(layer_hue) / sizeof(layer_hue[0]) && layer_hue[layer] >= 0) {
++            rgblight_sethsv_noeeprom(layer_hue[layer], LAYER_SAT, rgblight_get_val());
++        } else {
++            rgblight_reload_from_eeprom();
++        }
+     }
++    return state;
+ }
+ 
+-layer_state_t layer_state_set_user(layer_state_t state) {
+-    uint8_t sat = rgblight_get_sat();
+-    uint8_t val = rgblight_get_val();
+-    uint8_t hue = get_hue(get_highest_layer(state));
+-    rgblight_sethsv(hue, sat, val);
+-    return state;
++// ---- LED keys that save settings ----
++// Stock RGB_TOG / RGB_VAI / RGB_VAD write the *current* colour to EEPROM, which on a
++// non-base layer is the layer colour - that would overwrite the user's base colour.
++// So: restore the saved colour first, change brightness/on-off (saved), re-apply layer colour.
++bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
++    if (keycode == RGB_TOG || keycode == RGB_VAI || keycode == RGB_VAD) {
++        if (record->event.pressed) {
++            rgblight_reload_from_eeprom();
++            if (keycode == RGB_TOG) rgblight_toggle();
++            else if (keycode == RGB_VAI) rgblight_increase_val();
++            else rgblight_decrease_val();
++            layer_state_set_kb(layer_state);
++        }
++        return false;
++    }
++    return process_record_user(keycode, record);
++}
++
++// ---- Layer report for the on-screen overlay ----
++// Host sends 0x40 over raw HID; reply: [0x40, highest layer, layer_state (4 bytes LE)].
++void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
++    if (data[0] == 0x40) {
++        layer_state_t st = layer_state | default_layer_state;
++        data[1] = get_highest_layer(st);
++        data[2] = st & 0xFF;
++        data[3] = (st >> 8) & 0xFF;
++        data[4] = (st >> 16) & 0xFF;
++        data[5] = (st >> 24) & 0xFF;
++    } else {
++        data[0] = 0xFF; // id_unhandled
++    }
+ }
+-*/
