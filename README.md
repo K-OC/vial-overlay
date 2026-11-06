@@ -1,100 +1,56 @@
-# Vial overlay
+# vial-overlay
 
-An always-on-top window that shows your keyboard's current layer and the keys you're holding. It works with
-any keyboard running [Vial](https://get.vial.today) firmware, on Windows, macOS and Linux.
+A small always-on-top window that shows which layer your keyboard is on and which keys you're holding.
+Works with any keyboard running [Vial](https://get.vial.today), on Windows, macOS and Linux.
 
-Everything it draws comes from the keyboard itself: the physical layout (including rotated thumb clusters
-and encoders), the keymap on every layer, and the knob actions. Change something in Vial, then right-click >
-Reload keymap.
+It reads everything from the keyboard: the board's shape, every layer, and the knobs. There's nothing to
+set up per keyboard.
 
-- Transparent keys (▽) show what they fall through to, dimmed.
-- Hold-tap keys show their tap action, with "hold Shift" / "hold Layer 2" underneath.
-- The title bar names the layer and which thumb or key you're holding to get there.
+## Run it
 
-## Install and run
+You need Python 3 with Tkinter (the python.org installer includes it).
 
-Needs Python 3.8+ with Tkinter (included with the python.org installers).
+- **Windows:** `pythonw vial_overlay.pyw`
+- **macOS:** `pip3 install hidapi`, then `python3 vial_overlay.pyw`
+- **Linux:** `pip install hidapi`, install `linux/50-vial.rules` (instructions inside), then
+  `python3 vial_overlay.pyw`
 
-| OS | Setup | Run |
-|---|---|---|
-| Windows | nothing | `pythonw vial_overlay.pyw` |
-| macOS | `pip3 install hidapi` | `python3 vial_overlay.pyw &` (macOS may ask for Input Monitoring) |
-| Linux | `pip install hidapi`, then install `linux/50-vial.rules` (steps inside) and replug | `python3 vial_overlay.pyw &` |
+Drag the window to move it. Right-click for options. It pauses while Vial is open.
+`--test` prints what it reads, without opening a window.
 
-Drag the window to move it. Right-click (Ctrl-click on a Mac) for: Hide on base layer, Reload keymap, Bigger,
-Smaller, Quit. It pauses itself while Vial is open, because two programs talking to the keyboard at once
-confuse each other.
+## Settings
 
-`python vial_overlay.pyw --test` prints what it reads without opening a window. Use it to check setup.
+Optional. Copy `config.example.json` to `config.json` to name your layers and pick their colours.
 
-## Settings (optional)
+## Layer detection
 
-Copy `config.example.json` to `config.json` next to the script:
-
-| Key | Meaning |
-|---|---|
-| `layer_names` | Names for layers 0, 1, 2… (default "Layer N") |
-| `layer_colors` | Title-bar colour per layer |
-| `device` | `"vid:pid"` in hex, to choose a keyboard when several Vial boards are plugged in |
-| `firmware_layer_report` | `true` only if your firmware implements the layer report below |
-| `scale`, `opacity` | Window size and transparency |
-
-## How the layer is detected
-
-Stock Vial firmware doesn't report the active layer, so the overlay reads which keys are physically held
-and follows any layer keys (`LT`, `MO`, `TT`) among them. That covers hold-to-switch layers. Toggled or
-one-shot layers (`TG`, `TO`, `OSL`, `DF`) can't be seen this way.
-
-For exact detection, add this to your keymap or keyboard code and set `"firmware_layer_report": true`:
+Stock Vial firmware doesn't say which layer is active, so the overlay works it out from the keys you're
+holding. That works for hold-to-switch layers (`LT`, `MO`, `TT`) but not toggled ones. For exact detection,
+add this to your firmware and set `"firmware_layer_report": true`:
 
 ```c
 void raw_hid_receive_kb(uint8_t *data, uint8_t length) {
-    if (data[0] == 0x40) {               // layer report for the overlay
+    if (data[0] == 0x40) {
         layer_state_t st = layer_state | default_layer_state;
         data[1] = get_highest_layer(st);
         data[2] = st; data[3] = st >> 8; data[4] = st >> 16; data[5] = st >> 24;
     } else {
-        data[0] = 0xFF;                  // id_unhandled
+        data[0] = 0xFF;
     }
 }
 ```
 
-Held-key highlighting uses Vial's matrix tester, so on boards built without `VIAL_INSECURE` it only works
-after you unlock the keyboard in Vial.
+Highlighting held keys uses Vial's matrix tester. If your firmware isn't built with `VIAL_INSECURE`, unlock
+the board in Vial first.
 
-## Pushing a keymap without Vial
+## Also included
 
-`vial_overlay.pyw --write keymap.json` writes a numeric keymap
-(`{"keymap": [layer][row][col], "encoders": [layer][index][ccw, cw]}`, QMK v6 keycodes), sends only the
-changed parts, then reads it back and prints `verified: True`. Close Vial and the overlay first.
+- `tools/`: print board info, set LED brightness, change QMK settings
+- `--write keymap.json`: push a keymap without opening Vial
+- `examples/cheapino-qwerty/`: a full Cheapino v2 setup (layout, overlay config, firmware patch)
 
-## Tools
+The overlay only reads from your keyboard; `--write` is the only thing that changes it.
 
-Small scripts in `tools/` that reuse the overlay's HID code:
+## License
 
-- `diag.py`: name, layers, layer report, RGB values, knob actions
-- `brightness.py VALUE`: set and save RGB Light brightness (0-255)
-- `qmksetting.py QSID [VALUE]`: read or change a Vial QMK setting (for example 7 = tapping term in ms)
-
-## Example
-
-`examples/cheapino-qwerty/` is a complete setup for the Cheapino v2: a QWERTY Miryoku-style layout
-generated by a script, overlay settings, and a firmware patch with per-layer LED colours and the layer
-report.
-
-## Security
-
-- In normal use the overlay only reads from the keyboard. The one write path is `--write`, which you run
-  yourself.
-- It only talks to raw HID interfaces with the VIA/Vial usage page (0xFF60), and to boards that answer the
-  Vial ID request.
-- It runs no shell. Its one subprocess (checking whether Vial is open) uses fixed arguments, and it only
-  parses JSON (the definition the keyboard sends is LZMA-compressed JSON).
-- Firmware built with `VIAL_INSECURE = yes` lets any program on the computer rewrite the keymap and macros
-  without the physical unlock. That is a firmware choice, not something this tool needs, apart from held-key
-  highlighting.
-
-## Licence
-
-GPL-2.0-or-later (see `LICENSE`). The key label table and the Cheapino example's keycode table are derived
-from [vial-gui](https://github.com/vial-kb/vial-gui) (GPL-2.0).
+GPL-2.0-or-later. Key labels come from [vial-gui](https://github.com/vial-kb/vial-gui), which is GPL too.
