@@ -75,6 +75,8 @@ ENCODER = [["KC_WH_U","KC_WH_D"]] * len(LAYERS)   # [one direction, other direct
 ENCODER[3] = ["KC_VOLD","KC_VOLU"]                # MEDIA (hold Esc): volume
 ENC_PRESS_KEYS = ["KC_TAB"] * len(LAYERS)          # click = Tab
 ENC_PRESS_KEYS[3] = "KC_MPLY"                      # MEDIA: click = play/pause
+ENCODER[0] = ["LSFT(KC_TAB)","KC_TAB"]           # BASE: turn = Shift+Tab / Tab (move through a page)
+ENC_PRESS_KEYS[0] = "KC_BTN1"                      # BASE: click = left mouse click
 
 def show(path):
     d = json.load(open(path))

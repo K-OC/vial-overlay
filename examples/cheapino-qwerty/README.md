@@ -12,7 +12,7 @@ Shift and the other modifiers are on the home row; the thumbs switch layers when
 | Delete | F-keys |
 | Backspace | Numbers |
 
-The knob scrolls, and clicking it sends Tab.
+On the base layer, turning the knob moves with Tab / Shift+Tab and clicking it is a mouse click. On other layers it scrolls.
 
 ## Use it
 
